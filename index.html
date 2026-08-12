@@ -1,0 +1,53 @@
+<!doctype html><html lang="ar" dir="rtl"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f172a"><link rel="manifest" href="manifest.json">
+<title>إدارة البرج</title><link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body><div id="login" class="screen"><div class="card login"><div class="logo">🏢</div>
+<h1>إدارة البرج</h1><p>دخول الإدارة والسكان</p><input id="u" placeholder="اسم المستخدم">
+<input id="p" type="password" placeholder="كلمة المرور"><button class="primary" onclick="login()">دخول</button><p id="err"></p></div></div>
+<div id="app" class="hidden"><header><b>🏢 إدارة البرج</b><span id="who"></span><button onclick="logout()">خروج</button></header>
+<nav id="nav"></nav><main id="content"></main></div>
+<script>
+const sb=supabase.createClient("https://krnrgdsxecellehuezqg.supabase.co","sb_publishable__Ctgcy0njM0Vy5fA3LcHrg_ooMv7o8u");let session,me;
+const $=x=>document.getElementById(x);
+const esc=x=>String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+const money=x=>new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP",maximumFractionDigits:0}).format(Number(x||0));
+function showApp(){$("login").classList.add("hidden");$("app").classList.remove("hidden")}
+async function login(){
+ $("err").textContent="";let u=$("u").value.trim().toLowerCase(),p=$("p").value;
+ if(!u||!p){$("err").textContent="أدخل البيانات";return}
+ let r=await sb.auth.signInWithPassword({email:u+"@building.local",password:p});
+ if(r.error){$("err").textContent="اسم المستخدم أو كلمة المرور غير صحيحة";return}
+ session=r.data.session;let q=await sb.from("profiles").select("*").eq("id",session.user.id).single();
+ if(q.error||!q.data.is_active){await sb.auth.signOut();$("err").textContent="الحساب غير مهيأ أو غير مفعل";return}
+ me=q.data;showApp();$("who").textContent=" • "+(me.full_name||me.username);nav();me.must_change_password?changePage():home();
+}
+function nav(){
+ let a=me.role==="admin"?[["home","الرئيسية"],["apt","الشقق"],["users","المستخدمون"],["violations","المخالفات"],["payments","المدفوعات"],["expenses","المصروفات"],["audit","سجل العمليات"]]:[["home","الرئيسية"],["my","حسابي"]];
+ $("nav").innerHTML=a.map(x=>`<button onclick="${x[0]}Page()">${x[1]}</button>`).join("");
+}
+async function home(){
+ if(me.role!=="admin")return myPage();
+ let [a,v,p,e]=await Promise.all([sb.from("apartments").select("*"),sb.from("violations").select("*").neq("status","paid").neq("status","cancelled"),sb.from("payments").select("amount"),sb.from("expenses").select("amount")]);
+ let sum=x=>(x.data||[]).reduce((s,r)=>s+Number(r.amount||0),0);
+ $("content").innerHTML=`<h2>لوحة التحكم</h2><div class="grid"><div class="stat"><b>${a.data?.length||0}</b>الشقق</div><div class="stat"><b>${money(sum(v))}</b>مخالفات غير مدفوعة</div><div class="stat"><b>${money(sum(p))}</b>المدفوعات</div><div class="stat"><b>${money(sum(e))}</b>المصروفات</div></div>`;
+}
+async function aptPage(){let r=await sb.from("apartments").select("*").order("apartment_number");let a=r.data||[];$("content").innerHTML=`<div class="title"><h2>الشقق</h2><button class="primary" onclick="addApt()">+ شقة</button></div>`+a.map(x=>`<div class="card"><b>شقة ${esc(x.apartment_number)}</b><p>${esc(x.resident_name)} • ${esc(x.phone)}</p><p>الاشتراك: ${money(x.monthly_fee)}</p></div>`).join("")}
+async function addApt(){let n=prompt("رقم الشقة");if(!n)return;let name=prompt("اسم الساكن")||"",phone=prompt("رقم WhatsApp")||"",fee=Number(prompt("الاشتراك الشهري","500")||0);let r=await sb.from("apartments").insert({apartment_number:n,resident_name:name,phone,monthly_fee:fee});if(r.error)alert(r.error.message);else aptPage()}
+async function violationsPage(){let r=await sb.from("violations").select("*, apartments(apartment_number)").order("created_at",{ascending:false});$("content").innerHTML=`<div class="title"><h2>المخالفات</h2><button class="primary" onclick="addViolation()">+ مخالفة</button></div>`+(r.data||[]).map(v=>`<div class="card"><b>شقة ${esc(v.apartments?.apartment_number)}</b><p>${esc(v.violation_type)} — ${money(v.amount)}</p><p>الاستحقاق: ${esc(v.due_date||"غير محدد")} • ${esc(v.status)}</p><button onclick="wa('${v.id}')">💬 WhatsApp</button></div>`).join("")}
+async function addViolation(){let a=(await sb.from("apartments").select("*").order("apartment_number")).data||[];if(!a.length)return alert("أضف شقة أولاً");let n=prompt("رقم الشقة: "+a.map(x=>x.apartment_number).join(", ")),ap=a.find(x=>x.apartment_number===n);if(!ap)return;let t=prompt("نوع المخالفة");if(!t)return;let amount=Number(prompt("القيمة","500")||0),due=prompt("موعد التحصيل YYYY-MM-DD")||null;let r=await sb.from("violations").insert({apartment_id:ap.id,violation_type:t,amount,due_date:due,created_by:session.user.id});if(r.error)alert(r.error.message);else violationsPage()}
+async function paymentsPage(){let r=await sb.from("payments").select("*, apartments(apartment_number)").order("payment_date",{ascending:false});$("content").innerHTML=`<div class="title"><h2>المدفوعات</h2><button class="primary" onclick="addPayment()">+ دفعة</button></div>`+(r.data||[]).map(x=>`<div class="card">شقة ${esc(x.apartments?.apartment_number)} — <b>${money(x.amount)}</b><p>${esc(x.payment_date)}</p></div>`).join("")}
+async function addPayment(){let a=(await sb.from("apartments").select("*")).data||[],n=prompt("رقم الشقة"),ap=a.find(x=>x.apartment_number===n);if(!ap)return;let amount=Number(prompt("المبلغ")||0);if(!amount)return;let r=await sb.from("payments").insert({apartment_id:ap.id,amount,created_by:session.user.id});if(r.error)alert(r.error.message);else paymentsPage()}
+async function expensesPage(){let r=await sb.from("expenses").select("*").order("expense_date",{ascending:false});$("content").innerHTML=`<div class="title"><h2>المصروفات</h2><button class="primary" onclick="addExpense()">+ مصروف</button></div>`+(r.data||[]).map(x=>`<div class="card"><b>${esc(x.title)}</b><p>${money(x.amount)} • ${esc(x.expense_date)}</p></div>`).join("")}
+async function addExpense(){let t=prompt("بيان المصروف");if(!t)return;let a=Number(prompt("القيمة")||0);if(!a)return;let r=await sb.from("expenses").insert({title:t,amount:a,created_by:session.user.id});if(r.error)alert(r.error.message);else expensesPage()}
+async function usersPage(){let r=await sb.from("profiles").select("*, apartments(apartment_number)").order("created_at",{ascending:false});$("content").innerHTML=`<div class="title"><h2>المستخدمون</h2></div><div class="card"><p>إنشاء مستخدم Auth من داخل التطبيق سيتم إضافته عبر Edge Function آمنة في الخطوة التالية.</p></div>`+(r.data||[]).map(x=>`<div class="card"><b>${esc(x.username)}</b><p>${esc(x.full_name)} • ${esc(x.role)} • ${x.apartments?"شقة "+x.apartments.apartment_number:"بدون شقة"}</p></div>`).join("")}
+async function auditPage(){let r=await sb.from("audit_logs").select("*").order("created_at",{ascending:false}).limit(100);$("content").innerHTML="<h2>سجل العمليات</h2>"+(r.data||[]).map(x=>`<div class="card"><b>${esc(x.action)}</b><p>${esc(x.entity_type||"")} • ${esc(x.created_at)}</p></div>`).join("")}
+async function myPage(){let a=(await sb.from("apartments").select("*").eq("id",me.apartment_id).single()).data,v=(await sb.from("violations").select("*").eq("apartment_id",me.apartment_id)).data||[],p=(await sb.from("payments").select("*").eq("apartment_id",me.apartment_id)).data||[];$("content").innerHTML=`<h2>حسابي</h2><div class="card"><h3>شقة ${esc(a?.apartment_number)}</h3><p>${esc(a?.resident_name)}</p><p>الاشتراك: ${money(a?.monthly_fee)}</p></div><div class="card"><h3>المخالفات</h3>${v.map(x=>`<div class="row">${esc(x.violation_type)} <b>${money(x.amount)}</b></div>`).join("")||"لا توجد"}</div><div class="card"><h3>المدفوعات</h3>${p.map(x=>`<div class="row">${esc(x.payment_date)} <b>${money(x.amount)}</b></div>`).join("")||"لا توجد"}</div>`}
+function changePage(){$("content").innerHTML=`<div class="card"><h2>🔐 تغيير كلمة المرور</h2><p>يجب تغيير كلمة المرور قبل المتابعة.</p><input id="np" type="password" placeholder="كلمة المرور الجديدة"><input id="np2" type="password" placeholder="تأكيد كلمة المرور"><button class="primary" onclick="changePass()">حفظ</button><p id="cm"></p></div>`}
+async function changePass(){let a=$("np").value,b=$("np2").value;if(a.length<8)return $("cm").textContent="8 أحرف على الأقل";if(a!==b)return $("cm").textContent="كلمتا المرور غير متطابقتين";let r=await sb.auth.updateUser({password:a});if(r.error)return $("cm").textContent=r.error.message;await sb.from("profiles").update({must_change_password:false}).eq("id",session.user.id);me.must_change_password=false;nav();home()}
+async function wa(id){let r=await sb.from("violations").select("*, apartments(*)").eq("id",id).single(),v=r.data;if(!v)return;let ph=(v.apartments.phone||"").replace(/\D/g,"");if(!ph)return alert("لا يوجد رقم WhatsApp");let text=`🏢 إدارة البرج\nالشقة: ${v.apartments.apartment_number}\nالمخالفة: ${v.violation_type}\nالقيمة: ${money(v.amount)}\nموعد التحصيل: ${v.due_date||"غير محدد"}`;window.open("https://wa.me/"+ph+"?text="+encodeURIComponent(text),"_blank")}
+async function logout(){await sb.auth.signOut();location.reload()}
+function usersPage(){usersPageImpl()}
+async function usersPageImpl(){let r=await sb.from("profiles").select("*, apartments(apartment_number)").order("created_at",{ascending:false});$("content").innerHTML=`<div class="title"><h2>المستخدمون</h2></div><div class="card"><p>إنشاء حساب Auth من داخل التطبيق يحتاج Edge Function آمنة. سنضيفها قبل الاستخدام الفعلي.</p></div>`+(r.data||[]).map(x=>`<div class="card"><b>${esc(x.username)}</b><p>${esc(x.full_name)} • ${esc(x.role)} • ${x.apartments?"شقة "+x.apartments.apartment_number:"بدون شقة"}</p></div>`).join("")}
+</script></body></html>
