@@ -1,19 +1,11 @@
-# إدارة البرج
-هذه نسخة PWA أولية متصلة بـ Supabase.
+# برج الرسالة V2
+Mobile-first Arabic UI using the existing Supabase project.
 
-## أول Admin
-من Supabase > Authentication > Users > Add user:
-- Email: admin@building.local
-- Password: اختر كلمة مرور مؤقتة
-ثم انسخ User UUID ونفذ في SQL Editor:
-insert into public.profiles (id,username,full_name,role,is_active,must_change_password)
-values ('USER_UUID','admin','Building Admin','admin',true,true);
+Deploy:
+1. Replace the current GitHub project files with these files.
+2. Commit/push.
+3. Vercel automatically deploys.
 
-بعدها افتح التطبيق واستخدم:
-username: admin
-password: كلمة المرور التي أنشأتها.
+Current: login, forced password change, dashboard, apartments, violations, payments, expenses, users listing, attachments placeholder, audit log, resident view, WhatsApp prefilled message.
 
-## ملاحظات
-- لا يوجد أي service_role key في الواجهة.
-- إنشاء المستخدمين من داخل التطبيق يحتاج Edge Function آمنة، وهي الخطوة التالية.
-- WhatsApp الحالي يفتح رسالة جاهزة ولا يرسل تلقائياً.
+Next backend-safe additions: Supabase Edge Function for user creation, Storage for files, WhatsApp Business API + scheduled reminders.
