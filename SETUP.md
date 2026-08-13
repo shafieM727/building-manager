@@ -1,32 +1,32 @@
-# برج الرسالة — Complete package
+# برج الرسالة — Corrected Final
 
-## 1) Frontend
-Replace your GitHub/Vercel frontend with `index.html` and `manifest.json`.
+هذه النسخة مبنية على **Final Version التي كان Login فيها يعمل**. لم نغيّر طريقة تسجيل الدخول أو Supabase URL/key.
 
-## 2) Database
-In Supabase SQL Editor run:
-`supabase/migrations/001_complete.sql`
-This adds attachments/notification_log and private Storage bucket.
+## 1. Frontend
+ارفع `index.html` و `manifest.json` إلى GitHub ثم Deploy على Vercel.
 
-## 3) Edge Function: create-user
-Deploy `supabase/functions/create-user`.
-Set the Supabase secrets/environment variables:
-SUPABASE_URL
-SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
+## 2. Database
+شغّل `supabase/migrations/001_complete.sql` مرة واحدة في Supabase SQL Editor.
+الـSQL يستخدم `CREATE TABLE IF NOT EXISTS` ولا يحذف البيانات الموجودة.
 
-The service-role key MUST exist only in the Edge Function secret environment, never in index.html.
+## 3. Create User Edge Function
+انشر `supabase/functions/create-user/index.ts` باسم `create-user`.
+يجب أن تكون `SUPABASE_SERVICE_ROLE_KEY` Secret داخل Edge Function فقط.
 
-## 4) Edge Function: send-reminders
-Deploy `supabase/functions/send-reminders`.
-Schedule it with Supabase Cron/pg_cron or an external scheduler to run daily.
-It queues due reminders in notification_log. To actually send WhatsApp automatically, configure a WhatsApp Business API provider and add its secret to the Edge Function.
+## 4. Daily reminders
+انشر `supabase/functions/send-reminders/index.ts` باسم `send-reminders`.
+هذه الوظيفة تسجل الحالات المستحقة في notification_log. الإرسال الحقيقي على WhatsApp يحتاج WhatsApp Business API/provider credentials، ولا يجب وضعها في المتصفح.
 
-## 5) User creation
-The frontend calls create-user. Admin can create resident/admin accounts and link a resident to an apartment.
+## 5. Login
+تم الحفاظ على Login القديم: `admin` يتحول إلى `admin@building.local`، لذلك نفس حسابك الحالي ونفس الباسورد يظل مستخدمًا.
 
-## 6) Test order
-Admin login -> create apartment -> create resident -> resident login -> forced password change -> add violation -> resident sees it -> admin records payment -> violation paid -> upload attachment -> check RLS.
-
-## Important
-Do not expose service-role credentials in frontend or GitHub.
+## 6. اختبار
+1) Admin login
+2) إنشاء شقة
+3) إنشاء Resident وربطه بالشقة
+4) Resident login + تغيير الباسورد
+5) إضافة مخالفة + موعد تحصيل
+6) تسجيل الدفع
+7) رفع ملف
+8) تجربة زر WhatsApp
+9) مراجعة RLS
