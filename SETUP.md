@@ -13,6 +13,13 @@ Supabase > SQL Editor > New query > الصق محتوى:
 
 الـSQL لا يحذف جداولك القديمة. ينشئ فقط `monthly_charges`, `attachments`, `notification_log` ويضيف Storage bucket/policies.
 
+بعدها نفّذ `supabase/migrations/002_reports_maintenance.sql` بنفس الطريقة. ده بيضيف:
+- عمود `paid_date` لجدول `violations` (تاريخ تحصيل المخالفة، مهم عشان التقرير الشهري يعرف المخالفة اتحصلت في أي شهر).
+- جدول `maintenance_contacts` لأرقام الصيانة.
+- جدول `building_settings` لتخزين الرصيد الافتتاحي (رقم واحد بس، بيتحدد مرة واحدة من صفحة التقارير).
+
+⚠️ السياسات (RLS policies) في هذا الملف بُنيت بناءً على نفس الافتراضات الموجودة في الواجهة (عمود `role` و`is_active` في جدول `profiles`). لو عندك تعديلات مختلفة على `profiles` في migration 001، راجع الـpolicies قبل التنفيذ.
+
 ## C) Edge Function create-user
 Deploy function `create-user`.
 ضع `SUPABASE_SERVICE_ROLE_KEY` في Secrets فقط.
@@ -40,3 +47,5 @@ Deploy `send-reminders`.
 8. سجّل دفعة واربطها بالاستحقاق.
 9. ارفع PDF/صورة/فيديو.
 10. راجع التنبيهات.
+11. Admin > الصيانة > أضف رقم فني (نجار/سباك/أسانسير) وجرّب زرار الاتصال والواتساب.
+12. Admin > التقارير > حدّد الرصيد الافتتاحي (لو فيه كاش قبل النظام)، وتنقّل بين الشهور بالأسهم أو بمنتقي التاريخ.
