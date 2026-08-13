@@ -24,14 +24,6 @@ function head(t,s,b=""){return `<div class="head"><div><h2>${t}</h2><div class="
 async function dashboardPage(){let [a,c,v,p,e,n]=await Promise.all([db.from("apartments").select("*"),db.from("monthly_charges").select("*"),db.from("violations").select("*"),db.from("payments").select("*"),db.from("expenses").select("*"),db.from("notification_log").select("*").eq("status","queued")]);let sum=x=>(x||[]).reduce((s,z)=>s+(+z.amount||0),0),openV=(v.data||[]).filter(x=>!['paid','cancelled'].includes(x.status)),openC=(c.data||[]).filter(x=>!['paid','cancelled'].includes(x.status));$("main").innerHTML=head("لوحة التحكم","ملخص برج الرسالة",`<div class="actions"><button class="primary" onclick="generateMonth()">📅 إنشاء استحقاق الشهر</button><button onclick="notificationsPage()">🔔 ${n.data?.length||0} تنبيه معلق</button></div>`)+`<div class="stats"><div class="stat">🏢<b>${a.data?.length||0}</b><small>الشقق</small></div><div class="stat">💰<b>${money(sum(p.data))}</b><small>إجمالي المدفوعات</small></div><div class="stat">📅<b>${money(sum(openC))}</b><small>اشتراكات مستحقة</small></div><div class="stat">⚠️<b>${money(sum(openV))}</b><small>مخالفات مستحقة</small></div><div class="stat">🧾<b>${money(sum(e.data))}</b><small>المصروفات</small></div><div class="stat">💵<b>${money(sum(p.data)-sum(e.data))}</b><small>صافي التدفق</small></div></div><div class="grid"><div class="card"><h3>المخالفات التي تحتاج متابعة</h3>${openV.slice(0,8).map(x=>`<div class="row"><span>${esc(x.violation_type)}<small>التحصيل: ${date(x.due_date)}</small></span><b>${money(x.amount)}</b></div>`).join("")||'<div class="empty">لا توجد مخالفات مستحقة 🎉</div>'}</div><div class="card"><h3>استحقاقات الشهر</h3>${openC.slice(0,8).map(x=>`<div class="row"><span>شقة ${esc(x.apartment_id)}<small>${esc(x.period_month)}</small></span><b>${money((+x.amount||0)-(+x.paid_amount||0))}</b></div>`).join("")||'<div class="empty">لا توجد استحقاقات</div>'}</div></div>`}
 async function apartmentsPage(){let r=await db.from("apartments").select("*").order("apartment_number"),a=r.data||[];$('main').innerHTML=head("الشقق",`${a.length} شقة`,`<button class="primary" onclick="aptModal()">+ إضافة شقة</button>`)+`<input class="search" id="aq" oninput="filterApt()" placeholder="🔎 رقم الشقة أو اسم الساكن"><div id="aptlist">${a.map(x=>`<div class="card apt click" data-q="${esc((x.apartment_number+" "+(x.resident_name||"")).toLowerCase())}" onclick="apartmentDetails('${x.id}')"><div class="between"><b>شقة ${esc(x.apartment_number)}</b><span class="badge">${money(x.monthly_fee)} / شهر</span></div><p>${esc(x.resident_name||"لا يوجد ساكن")}</p><div class="between"><small>${esc(x.phone||"لا يوجد رقم")}</small>${x.phone?`<button onclick="event.stopPropagation();openApartmentWA('${x.id}')">💬 WhatsApp</button>`:""}</div></div>`).join("")||'<div class="empty">لا توجد شقق</div>'}</div>`}
 async function openApartmentWA(id){let q=await db.from("apartments").select("*").eq("id",id).single();let a=q.data;if(!a?.phone)return alert("لا يوجد رقم WhatsApp للشقة");let t=`🏢 برج الرسالة\nالشقة: ${a.apartment_number}\nالساكن: ${a.resident_name||""}\nبرجاء التواصل مع إدارة البرج.`;window.open("https://wa.me/"+a.phone.replace(/\D/g,"")+"?text="+encodeURIComponent(t),"_blank")}
-async function sendApartmentWA(id){
-  let q=await db.from("apartments").select("*").eq("id",id).single(),a=q.data;
-  if(q.error||!a) return alert("تعذر تحميل بيانات الشقة");
-  let phone=normalizeWhatsAppPhone(a.phone);
-  if(!phone) return alert("رقم WhatsApp غير صحيح. استخدم مثل 01012345678 أو +201012345678");
-  let t=`🏢 برج الرسالة\nالشقة: ${a.apartment_number}\nمرحبًا ${a.resident_name||""}\nهذه رسالة من إدارة البرج.`;
-  window.open(whatsappUrl(phone,t),"_blank");
-}
 function filterApt(){let q=$("aq").value.toLowerCase();document.querySelectorAll(".apt").forEach(x=>x.style.display=x.dataset.q.includes(q)?"block":"none")}
 function openModal(t,body){$("modal").innerHTML=`<div class="modalwrap" onclick="if(event.target===this)closeModal()"><div class="modal"><h3>${t}</h3>${body}</div></div>`}function closeModal(){$("modal").innerHTML=""}
 function aptModal(x={}){openModal(x.id?"تعديل شقة":"إضافة شقة",`<input id="an" value="${esc(x.apartment_number||"")}" placeholder="رقم الشقة"><input id="rn" value="${esc(x.resident_name||"")}" placeholder="اسم الساكن"><input id="ph" value="${esc(x.phone||"")}" placeholder="رقم WhatsApp بصيغة دولية"><input id="mf" type="number" value="${x.monthly_fee||0}" placeholder="الاشتراك الشهري"><div class="buttons"><button class="primary" onclick="saveApt('${x.id||""}')">حفظ</button><button onclick="closeModal()">إلغاء</button></div>`)}
@@ -55,13 +47,13 @@ async function editViolation(id){let z=(await db.from('violations').select('*').
 async function updateViolation(id){let r=await db.from('violations').update({violation_type:$("vt").value,amount:+$("vm").value||0,due_date:$("vd").value||null,status:$("vs").value,notes:$("vn").value}).eq('id',id);if(r.error)return alert(r.error.message);closeModal();violationsPage()}
 async function markPaid(id){let r=await db.from("violations").update({status:"paid"}).eq("id",id);if(r.error)alert(r.error.message);else violationsPage()}
 function normalizeWhatsAppPhone(raw){
-  let p=String(raw||"").trim().replace(/[\\s().-]/g,"");
+  let p=String(raw||"").trim().replace(/[\s().-]/g,"");
   if(!p) return null;
   if(p.startsWith("00")) p=p.slice(2);
   if(p.startsWith("+")) p=p.slice(1);
+  // Egypt local mobile: 01012345678 -> 201012345678
   if(p.startsWith("01") && p.length===11) p="20"+p;
-  if(p.startsWith("1") && p.length===10) p="20"+p;
-  return /^\\d{8,15}$/.test(p) ? p : null;
+  return /^\d{8,15}$/.test(p) ? p : null;
 }
 function whatsappUrl(phone,text){
   const normalized=normalizeWhatsAppPhone(phone);
