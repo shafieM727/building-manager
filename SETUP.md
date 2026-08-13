@@ -1,32 +1,42 @@
-# برج الرسالة — Corrected Final
+# تشغيل برج الرسالة خطوة بخطوة
 
-هذه النسخة مبنية على **Final Version التي كان Login فيها يعمل**. لم نغيّر طريقة تسجيل الدخول أو Supabase URL/key.
+## A) GitHub + Vercel
+- استبدل `index.html` و`manifest.json` في repository.
+- Commit + Push.
+- Vercel سيعيد الـDeploy.
+- جرّب `admin` بنفس الباسورد الحالي.
 
-## 1. Frontend
-ارفع `index.html` و `manifest.json` إلى GitHub ثم Deploy على Vercel.
+## B) Database
+Supabase > SQL Editor > New query > الصق محتوى:
+`supabase/migrations/001_complete.sql`
+ثم Run.
 
-## 2. Database
-شغّل `supabase/migrations/001_complete.sql` مرة واحدة في Supabase SQL Editor.
-الـSQL يستخدم `CREATE TABLE IF NOT EXISTS` ولا يحذف البيانات الموجودة.
+الـSQL لا يحذف جداولك القديمة. ينشئ فقط `monthly_charges`, `attachments`, `notification_log` ويضيف Storage bucket/policies.
 
-## 3. Create User Edge Function
-انشر `supabase/functions/create-user/index.ts` باسم `create-user`.
-يجب أن تكون `SUPABASE_SERVICE_ROLE_KEY` Secret داخل Edge Function فقط.
+## C) Edge Function create-user
+Deploy function `create-user`.
+ضع `SUPABASE_SERVICE_ROLE_KEY` في Secrets فقط.
 
-## 4. Daily reminders
-انشر `supabase/functions/send-reminders/index.ts` باسم `send-reminders`.
-هذه الوظيفة تسجل الحالات المستحقة في notification_log. الإرسال الحقيقي على WhatsApp يحتاج WhatsApp Business API/provider credentials، ولا يجب وضعها في المتصفح.
+## D) Edge Function send-reminders
+Deploy `send-reminders`.
+ضع:
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `WHATSAPP_ACCESS_TOKEN` (اختياري للإرسال الحقيقي)
+- `WHATSAPP_PHONE_NUMBER_ID` (اختياري للإرسال الحقيقي)
 
-## 5. Login
-تم الحفاظ على Login القديم: `admin` يتحول إلى `admin@building.local`، لذلك نفس حسابك الحالي ونفس الباسورد يظل مستخدمًا.
+بدون WhatsApp credentials، الوظيفة تسجل التنبيه كـqueued بدل الإرسال.
 
-## 6. اختبار
-1) Admin login
-2) إنشاء شقة
-3) إنشاء Resident وربطه بالشقة
-4) Resident login + تغيير الباسورد
-5) إضافة مخالفة + موعد تحصيل
-6) تسجيل الدفع
-7) رفع ملف
-8) تجربة زر WhatsApp
-9) مراجعة RLS
+## E) الجدولة اليومية
+اجعل `send-reminders` يعمل مرة يوميًا من Supabase Cron أو أي scheduler يستدعي الـEdge Function.
+
+## F) أول اختبار
+1. Login admin.
+2. الشقق > إضافة/تعديل شقة.
+3. المستخدمون > إنشاء Resident وربطه بالشقة.
+4. افتح بحساب Resident؛ سيطلب تغيير الباسورد.
+5. Admin > الاشتراكات > إنشاء شهر.
+6. Admin > المخالفات > أضف مخالفة وموعد تحصيل.
+7. استخدم WhatsApp للتجربة اليدوية.
+8. سجّل دفعة واربطها بالاستحقاق.
+9. ارفع PDF/صورة/فيديو.
+10. راجع التنبيهات.

@@ -1,10 +1,28 @@
-# برج الرسالة — Final test build
+# برج الرسالة — Complete Mobile/PWA Build
 
-1. Replace the existing GitHub project files with `index.html` and `manifest.json`.
-2. Commit/push to GitHub.
-3. Vercel redeploys automatically.
-4. Login accepts either `admin` or `admin@building.local` and converts `admin` to the existing Supabase Auth email convention.
-5. Existing Supabase schema expected: profiles, apartments, violations, payments, expenses, audit_logs.
-6. Storage upload expects a Supabase Storage bucket named `building-files`.
-7. Automatic WhatsApp messages cannot safely be sent from browser code. Use WhatsApp Business API + Supabase Edge Function + scheduled job for daily/monthly reminders.
-8. User creation also needs an Edge Function using the Supabase service-role key; never put that key in frontend code.
+هذه النسخة مبنية على الـFinal Version التي كان Login فيها يعمل، وتحافظ على convention: `admin` => `admin@building.local`.
+
+## ما تم تنفيذه
+- Admin / Resident مع صلاحيات مختلفة.
+- إجبار تغيير الباسورد أول Login.
+- إدارة الشقق: إضافة/تعديل/تفاصيل.
+- إدارة المستخدمين: إنشاء عبر Edge Function، تعديل، تفعيل/تعطيل وربط بالشقة.
+- اشتراكات شهرية واستحقاقات لكل شقة + توليد شهر كامل.
+- مخالفات: إضافة/تعديل/دفع/موعد تحصيل/WhatsApp يدوي.
+- مدفوعات مرتبطة بالشقة والاستحقاق.
+- مصروفات.
+- مرفقات صور/PDF/فيديو عبر Storage خاص.
+- سجل تنبيهات.
+- Edge Function للتذكيرات اليومية، وتدعم WhatsApp Cloud API عند إضافة الأسرار.
+- Audit Log موجود من الـschema القديم.
+- Resident يرى شقته فقط.
+
+## Deploy
+1. ارفع `index.html` و`manifest.json` إلى GitHub/Vercel.
+2. نفّذ `supabase/migrations/001_complete.sql` مرة واحدة في Supabase SQL Editor.
+3. Deploy `create-user` و`send-reminders` كـEdge Functions.
+4. ضع `SUPABASE_SERVICE_ROLE_KEY` كSecret للـcreate-user/send-reminders فقط.
+5. للتذكيرات الحقيقية عبر WhatsApp Cloud API أضف `WHATSAPP_ACCESS_TOKEN` و`WHATSAPP_PHONE_NUMBER_ID` للـsend-reminders.
+6. شغّل `send-reminders` يوميًا عبر Supabase Cron/External scheduler.
+
+لا تضع service-role key في Frontend.
