@@ -269,8 +269,8 @@ function normalizeWhatsAppPhone(raw){
   if(!p) return null;
   if(p.startsWith("00")) p=p.slice(2);
   if(p.startsWith("+")) p=p.slice(1);
-  // Egypt local mobile: 01012345678 -> 201012345678
-  if(p.startsWith("01") && p.length===11) p="20"+p;
+  // Egypt local mobile: 01012345678 -> 201012345678 (نشيل الصفر الأول ونحط كود الدولة)
+  if(p.startsWith("01") && p.length===11) p="20"+p.slice(1);
   return /^\d{8,15}$/.test(p) ? p : null;
 }
 function whatsappUrl(phone,text){
