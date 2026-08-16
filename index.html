@@ -107,6 +107,32 @@ main{max-width:1180px;margin-right:240px;padding:26px 22px 100px}
 .mutebar{padding:12px;text-align:center;background:var(--danger-soft);color:var(--danger);border-top:1px solid var(--line2);font-weight:700}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 @media(max-width:760px){#side{display:none}main{margin-right:0;padding:16px 14px 100px}.stats{grid-template-columns:repeat(2,1fr)}.stat{padding:14px}.stat b{font-size:20px}.grid,.grid3{grid-template-columns:1fr}.head{align-items:flex-start;flex-direction:column}.head h2{font-size:21px}#nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);z-index:30;justify-content:space-around;padding:6px 2px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -8px 24px rgba(16,25,46,.06)}#nav button{background:transparent;display:flex;flex-direction:column;align-items:center;font-size:18px;padding:4px;font-weight:500}#nav small{font-size:9px}.card{border-radius:var(--r-md)}.table{font-size:13px}.wide{width:100%;margin:5px 0;text-align:right}.moremenu{display:flex;flex-direction:column;gap:4px}}
+.statement{max-width:820px;margin:0 auto;background:#fff;border-radius:var(--r-lg);padding:28px;box-shadow:var(--shadow-sm)}
+.stmt-toolbar{display:flex;justify-content:space-between;margin-bottom:20px}
+.stmt-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid var(--ink);padding-bottom:16px;margin-bottom:16px}
+.stmt-head b{font-family:var(--disp);font-size:20px}
+.stmt-head small{display:block;color:var(--ink-soft);margin-top:2px}
+.stmt-meta{text-align:left;font-size:13px;color:var(--ink-soft)}
+.stmt-meta span{display:block;margin-bottom:3px}
+.stmt-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}
+.stmt-summary>div{background:var(--paper);border-radius:var(--r-md);padding:12px;text-align:center}
+.stmt-summary small{display:block;color:var(--ink-soft);font-size:12px;margin-bottom:4px}
+.stmt-summary b{font-size:16px}
+.stmt-summary .stmt-total{background:var(--ink);color:#fff}
+.stmt-summary .stmt-total small{color:#cbd5e1}
+.statement h3{font-size:15px;margin:22px 0 10px;font-family:var(--disp)}
+.stmt-table{width:100%;border-collapse:collapse;font-size:13px}
+.stmt-table th,.stmt-table td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line2)}
+.stmt-table th{background:var(--paper);font-weight:700}
+.stmt-footer{margin-top:28px;text-align:center;color:var(--ink-soft);font-size:12px}
+@media print{
+  header,aside,nav,.no-print{display:none!important}
+  body,#app{background:#fff!important}
+  main{padding:0!important}
+  .statement{box-shadow:none;padding:0;max-width:100%}
+  .stmt-summary .stmt-total{background:#eee!important;color:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .stmt-table th{background:#eee!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 </style></head><body>
 <div id="login" class="login"><div class="loginbox"><div class="logo">🏢</div><h1>برج الرسالة</h1><p class="muted">نظام إدارة البرج</p><input id="username" placeholder="Username مثل admin"><input id="password" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')login()"><button class="primary" onclick="login()">تسجيل الدخول</button><div id="loginerr" class="err"></div></div></div>
 <div id="app" class="hidden"><header><div><b>🏢 برج الرسالة</b><small id="who"></small></div><button onclick="globalSearchModal()" title="بحث">🔎</button><button onclick="logout()">خروج</button></header><aside id="side"></aside><main id="main"></main><nav id="nav"></nav></div><div id="modal"></div>
@@ -216,7 +242,7 @@ function filterApt(){let q=$("aq").value.toLowerCase();document.querySelectorAll
 function openModal(t,body){$("modal").innerHTML=`<div class="modalwrap" onclick="if(event.target===this)closeModal()"><div class="modal"><h3>${t}</h3>${body}</div></div>`}function closeModal(){$("modal").innerHTML=""}
 function aptModal(x={}){openModal(x.id?"تعديل شقة":"إضافة شقة",`<input id="an" value="${esc(x.apartment_number||"")}" placeholder="رقم الشقة"><input id="fl" type="number" value="${x.floor_number??""}" placeholder="الدور (اختياري)"><input id="rn" value="${esc(x.resident_name||"")}" placeholder="اسم الساكن"><input id="ph" value="${esc(x.phone||"")}" placeholder="رقم WhatsApp بصيغة دولية"><input id="mf" type="number" value="${x.monthly_fee||0}" placeholder="الاشتراك الشهري"><div class="buttons"><button class="primary" onclick="saveApt('${x.id||""}')">حفظ</button><button onclick="closeModal()">إلغاء</button></div>`)}
 async function saveApt(id){let fl=$("fl").value.trim(),payload={apartment_number:$("an").value.trim(),floor_number:fl===""?null:+fl,resident_name:$("rn").value.trim(),phone:$("ph").value.trim(),monthly_fee:+$("mf").value||0};let r=id?await db.from("apartments").update(payload).eq("id",id):await db.from("apartments").insert(payload);if(r.error)return alert(friendlyError(r.error.message));closeModal();apartmentsPage()}
-async function apartmentDetails(id){let [a,u,c,v,p,f]=await Promise.all([db.from("apartments").select("*").eq("id",id).single(),db.from("profiles").select("*").eq("apartment_id",id),db.from("monthly_charges").select("*").eq("apartment_id",id).order("period_month",{ascending:false}),db.from("violations").select("*").eq("apartment_id",id).order("created_at",{ascending:false}),db.from("payments").select("*").eq("apartment_id",id).order("payment_date",{ascending:false}),db.from("attachments").select("*").eq("apartment_id",id).order("created_at",{ascending:false})]);let x=a.data;$("main").innerHTML=head(`شقة ${esc(x?.apartment_number)}${x?.floor_number!=null&&x?.floor_number!==""?` (دور ${esc(x.floor_number)})`:""}`,"تفاصيل الحساب",`<div class="actions"><button class="primary" onclick='aptModal(${JSON.stringify(x).replace(/'/g,"&#39;")})'>✏️ تعديل</button><button onclick="vModal('${id}')">⚠️ مخالفة</button><button onclick="chargeModal('${id}')">📅 استحقاق</button></div>`)+`<div class="hero"><b>${esc(x?.resident_name||"بدون ساكن")}</b><span>${esc(x?.phone||"لا يوجد رقم")}</span><strong>${money(x?.monthly_fee)} / شهر</strong></div><div class="grid"><div class="card"><h3>👤 المستخدم</h3>${(u.data||[]).map(z=>`<div class="row"><span>${esc(z.full_name||z.username)}<small>${esc(z.role)}</small></span><span class="pill">${z.is_active?'مفعل':'معطل'}</span></div>`).join("")||'<div class="empty">لا يوجد مستخدم مرتبط</div>'}</div><div class="card"><h3>💳 المدفوعات</h3>${(p.data||[]).slice(0,6).map(z=>`<div class="row"><span>${date(z.payment_date)}<small>${esc(z.notes||"")}</small></span><b>${money(z.amount)}</b></div>`).join("")||'<div class="empty">لا يوجد</div>'}</div></div><div class="card"><h3>📅 الاشتراكات</h3>${(c.data||[]).slice(0,12).map(z=>chargeRow(z)).join("")||'<div class="empty">لا توجد استحقاقات</div>'}</div><div class="card"><h3>⚠️ المخالفات</h3>${(v.data||[]).slice(0,12).map(z=>violationRow(z)).join("")||'<div class="empty">لا توجد مخالفات</div>'}</div><div class="card"><h3>📎 المرفقات</h3>${(f.data||[]).map(z=>fileRow(z)).join("")||'<div class="empty">لا توجد مرفقات</div>'}</div>`}
+async function apartmentDetails(id){let [a,u,c,v,p,f]=await Promise.all([db.from("apartments").select("*").eq("id",id).single(),db.from("profiles").select("*").eq("apartment_id",id),db.from("monthly_charges").select("*").eq("apartment_id",id).order("period_month",{ascending:false}),db.from("violations").select("*").eq("apartment_id",id).order("created_at",{ascending:false}),db.from("payments").select("*").eq("apartment_id",id).order("payment_date",{ascending:false}),db.from("attachments").select("*").eq("apartment_id",id).order("created_at",{ascending:false})]);let x=a.data;$("main").innerHTML=head(`شقة ${esc(x?.apartment_number)}${x?.floor_number!=null&&x?.floor_number!==""?` (دور ${esc(x.floor_number)})`:""}`,"تفاصيل الحساب",`<div class="actions"><button class="primary" onclick='aptModal(${JSON.stringify(x).replace(/'/g,"&#39;")})'>✏️ تعديل</button><button onclick="vModal('${id}')">⚠️ مخالفة</button><button onclick="chargeModal('${id}')">📅 استحقاق</button><button onclick="statementPage('${id}')">🖨️ كشف حساب</button></div>`)+`<div class="hero"><b>${esc(x?.resident_name||"بدون ساكن")}</b><span>${esc(x?.phone||"لا يوجد رقم")}</span><strong>${money(x?.monthly_fee)} / شهر</strong></div><div class="grid"><div class="card"><h3>👤 المستخدم</h3>${(u.data||[]).map(z=>`<div class="row"><span>${esc(z.full_name||z.username)}<small>${esc(z.role)}</small></span><span class="pill">${z.is_active?'مفعل':'معطل'}</span></div>`).join("")||'<div class="empty">لا يوجد مستخدم مرتبط</div>'}</div><div class="card"><h3>💳 المدفوعات</h3>${(p.data||[]).slice(0,6).map(z=>`<div class="row"><span>${date(z.payment_date)}<small>${esc(z.notes||"")}</small></span><b>${money(z.amount)}</b></div>`).join("")||'<div class="empty">لا يوجد</div>'}</div></div><div class="card"><h3>📅 الاشتراكات</h3>${(c.data||[]).slice(0,12).map(z=>chargeRow(z)).join("")||'<div class="empty">لا توجد استحقاقات</div>'}</div><div class="card"><h3>⚠️ المخالفات</h3>${(v.data||[]).slice(0,12).map(z=>violationRow(z)).join("")||'<div class="empty">لا توجد مخالفات</div>'}</div><div class="card"><h3>📎 المرفقات</h3>${(f.data||[]).map(z=>fileRow(z)).join("")||'<div class="empty">لا توجد مرفقات</div>'}</div>`}
 function chargeRow(z){let rem=(+z.amount||0)-(+z.paid_amount||0);return `<div class="row"><span>${esc(z.period_month)}<small>استحقاق ${date(z.due_date)} • ${esc(z.status)}</small></span><span><b>${money(rem)}</b> <button onclick="pModal('${z.apartment_id}','${z.id}')">دفع</button></span></div>`}
 function violationRow(v){return `<div class="row"><span>${esc(v.violation_type)}<small>استحقاق ${date(v.due_date)} • ${violationBadge(v.status||'unpaid')}</small></span><span><b>${money(v.amount)}</b> <button onclick="sendWA('${v.id}')">💬</button> <button onclick="markPaid('${v.id}')">✓</button></span></div>`}
 function fileRow(f){return `<div class="file"><span>📎 ${esc(f.file_name)}<small>${date(f.created_at)}</small></span><button onclick="downloadFile('${f.file_path}')">فتح</button></div>`}
@@ -360,6 +386,47 @@ async function runGlobalSearch(){
   box.innerHTML=results.map(r=>`<div class="row click" onclick="closeModal();${r.action}"><b>${r.icon} ${esc(r.title)}</b><small>${esc(r.sub)}</small></div>`).join('');
 }
 async function unreadGroupCount(){let lr=(await db.from('group_reads').select('last_read_at').eq('user_id',session.user.id).maybeSingle()).data;let since=lr?.last_read_at||'1970-01-01';let r=await db.from('group_messages').select('id',{count:'exact',head:true}).gt('created_at',since).neq('sender_id',session.user.id).is('deleted_at',null);return r.count||0}
+async function statementPage(id){
+  $("main").innerHTML='<div class="empty">⏳ جاري التحميل...</div>';
+  let [a,c,v,p]=await Promise.all([
+    db.from("apartments").select("*").eq("id",id).single(),
+    db.from("monthly_charges").select("*").eq("apartment_id",id).order("period_month",{ascending:true}),
+    db.from("violations").select("*").eq("apartment_id",id).order("created_at",{ascending:true}),
+    db.from("payments").select("*").eq("apartment_id",id).order("payment_date",{ascending:true})
+  ]);
+  let x=a.data,charges=c.data||[],viols=v.data||[],pays=p.data||[];
+  if(!x){$("main").innerHTML='<div class="empty">تعذر تحميل بيانات الشقة</div>';return}
+  let totalInvoicedC=charges.reduce((s,z)=>s+(+z.amount||0),0);
+  let totalPaidC=charges.reduce((s,z)=>s+(+z.paid_amount||0),0);
+  let totalV=viols.reduce((s,z)=>s+(+z.amount||0),0);
+  let totalVPaid=viols.filter(z=>z.status==='paid').reduce((s,z)=>s+(+z.amount||0),0);
+  let totalPayments=pays.reduce((s,z)=>s+(+z.amount||0),0);
+  let outstanding=(totalInvoicedC-totalPaidC)+(totalV-totalVPaid);
+  $("main").innerHTML=`
+  <div class="statement">
+    <div class="stmt-toolbar no-print"><button onclick="apartmentDetails('${id}')">◀ رجوع</button><button class="primary" onclick="window.print()">🖨️ طباعة / حفظ PDF</button></div>
+    <div class="stmt-head">
+      <div><b>🏢 برج الرسالة</b><small>كشف حساب شقة</small></div>
+      <div class="stmt-meta"><span>شقة ${esc(x.apartment_number)}${x.floor_number!=null&&x.floor_number!==''?` (دور ${esc(x.floor_number)})`:''}</span><span>${esc(x.resident_name||'')}</span><span>تاريخ الكشف: ${date(today())}</span></div>
+    </div>
+    <div class="stmt-summary">
+      <div><small>إجمالي الاشتراكات</small><b>${money(totalInvoicedC)}</b></div>
+      <div><small>إجمالي المخالفات</small><b>${money(totalV)}</b></div>
+      <div><small>إجمالي المدفوع</small><b>${money(totalPaidC+totalVPaid)}</b></div>
+      <div class="stmt-total"><small>الرصيد المستحق</small><b>${money(outstanding)}</b></div>
+    </div>
+    <h3>📅 الاشتراكات الشهرية</h3>
+    <table class="stmt-table"><thead><tr><th>الشهر</th><th>القيمة</th><th>المدفوع</th><th>المتبقي</th><th>الحالة</th></tr></thead>
+    <tbody>${charges.map(z=>`<tr><td>${esc(z.period_month)}</td><td>${money(z.amount)}</td><td>${money(z.paid_amount)}</td><td>${money((+z.amount||0)-(+z.paid_amount||0))}</td><td>${esc(z.status)}</td></tr>`).join('')||`<tr><td colspan="5">لا توجد استحقاقات</td></tr>`}</tbody></table>
+    <h3>⚠️ المخالفات</h3>
+    <table class="stmt-table"><thead><tr><th>النوع</th><th>التاريخ</th><th>القيمة</th><th>الحالة</th></tr></thead>
+    <tbody>${viols.map(z=>`<tr><td>${esc(z.violation_type)}</td><td>${date(z.violation_date)}</td><td>${money(z.amount)}</td><td>${esc(z.status)}</td></tr>`).join('')||`<tr><td colspan="4">لا توجد مخالفات</td></tr>`}</tbody></table>
+    <h3>💳 سجل المدفوعات</h3>
+    <table class="stmt-table"><thead><tr><th>التاريخ</th><th>المبلغ</th><th>طريقة الدفع</th><th>ملاحظات</th></tr></thead>
+    <tbody>${pays.map(z=>`<tr><td>${date(z.payment_date)}</td><td>${money(z.amount)}</td><td>${esc(z.payment_method||'')}</td><td>${esc(z.notes||'')}</td></tr>`).join('')||`<tr><td colspan="4">لا توجد مدفوعات</td></tr>`}</tbody></table>
+    <div class="stmt-footer">تم إصدار هذا الكشف تلقائيًا من نظام إدارة برج الرسالة</div>
+  </div>`;
+}
 function bulkReminderModal(){openModal('إرسال تنبيه جماعي',`<label class="label">المستلمين</label><select id="brAudience"><option value="all">كل الشقق</option><option value="late_charges">الشقق المتأخرة عن الاشتراك الشهري</option><option value="open_violations">الشقق عليها مخالفات مستحقة</option></select><label class="label">نص الرسالة</label><textarea id="brMsg" rows="5" placeholder="اكتب رسالتك هنا..."></textarea><label class="label"><input id="brDetails" type="checkbox" checked style="width:auto;display:inline-block"> أضف تفاصيل المبلغ المستحق تلقائيًا لكل شقة</label><div class="buttons"><button class="primary" onclick="prepareBulkReminder()">التالي</button><button onclick="closeModal()">إلغاء</button></div>`)}
 async function prepareBulkReminder(){
   let audience=$('brAudience').value,baseMsg=$('brMsg').value.trim(),withDetails=$('brDetails').checked;
@@ -386,7 +453,7 @@ async function myPage(){let a=(await db.from("apartments").select("*").eq("id",m
   let dueCharges=c.filter(x=>x.status!=='paid'&&x.status!=='cancelled').reduce((s,x)=>s+((+x.amount||0)-(+x.paid_amount||0)),0);
   let dueViolations=v.filter(x=>!['paid','cancelled'].includes(x.status)).reduce((s,x)=>s+(+x.amount||0),0);
   let totalDue=dueCharges+dueViolations;
-  $('main').innerHTML=head('شقتي','ملخص حسابك',unreadGC>0?`<button class="primary" onclick="groupChatPage()">💬 ${unreadGC} رسالة جديدة في الجروب</button>`:'')+
+  $('main').innerHTML=head('شقتي','ملخص حسابك',`<div class="actions">${unreadGC>0?`<button class="primary" onclick="groupChatPage()">💬 ${unreadGC} رسالة جديدة في الجروب</button>`:''}<button onclick="statementPage(me.apartment_id)">🖨️ كشف حساب</button></div>`)+
   (an.length?`<div class="card"><h3>📢 آخر التعميمات</h3>${an.map(x=>`<div class="row"><span>${x.pinned?'📌 ':''}${esc(x.title)}<small>${esc(x.message)}</small></span><small>${date(x.created_at)}</small></div>`).join('')}</div>`:'')+
   `<div class="hero">🏠<b>شقة ${esc(a?.apartment_number)}</b><small>${esc(a?.resident_name)}</small><strong style="font-size:28px">${totalDue>0?money(totalDue)+' إجمالي مستحق عليك':'✓ حسابك متظبط بالكامل'}</strong>${totalDue>0?`<small>اشتراكات ${money(dueCharges)} + مخالفات ${money(dueViolations)}</small>`:''}</div><div class="grid"><div class="card"><h3>📅 الاشتراكات</h3>${c.map(chargeRow).join('')||'<div class="empty">لا توجد</div>'}</div><div class="card"><h3>💳 المدفوعات</h3>${p.map(x=>`<div class="row"><span>${date(x.payment_date)}<small>${esc(x.notes||'')}</small></span><b>${money(x.amount)}</b></div>`).join('')||'<div class="empty">لا توجد</div>'}</div></div><div class="card"><h3>⚠️ المخالفات</h3>${v.map(violationRow).join('')||'<div class="empty">لا توجد مخالفات 🎉</div>'}</div><div class="card"><h3>📎 المرفقات</h3>${f.map(fileRow).join('')||'<div class="empty">لا توجد مرفقات</div>'}</div>`}
 async function myChargesPage(){return myPage()}async function myViolationsPage(){return myPage()}async function myPaymentsPage(){return myPage()}async function myFilesPage(){return myPage()}
