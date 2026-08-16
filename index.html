@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#10192e"><link rel="manifest" href="manifest.json"><title>برج الرسالة</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#10192e"><link rel="manifest" href="manifest.json"><link rel="icon" href="icons/icon-192.png" type="image/png"><link rel="apple-touch-icon" href="icons/icon-192.png"><title>برج الرسالة</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -109,7 +109,7 @@ main{max-width:1180px;margin-right:240px;padding:26px 22px 100px}
 @media(max-width:760px){#side{display:none}main{margin-right:0;padding:16px 14px 100px}.stats{grid-template-columns:repeat(2,1fr)}.stat{padding:14px}.stat b{font-size:20px}.grid,.grid3{grid-template-columns:1fr}.head{align-items:flex-start;flex-direction:column}.head h2{font-size:21px}#nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);z-index:30;justify-content:space-around;padding:6px 2px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -8px 24px rgba(16,25,46,.06)}#nav button{background:transparent;display:flex;flex-direction:column;align-items:center;font-size:18px;padding:4px;font-weight:500}#nav small{font-size:9px}.card{border-radius:var(--r-md)}.table{font-size:13px}.wide{width:100%;margin:5px 0;text-align:right}.moremenu{display:flex;flex-direction:column;gap:4px}}
 </style></head><body>
 <div id="login" class="login"><div class="loginbox"><div class="logo">🏢</div><h1>برج الرسالة</h1><p class="muted">نظام إدارة البرج</p><input id="username" placeholder="Username مثل admin"><input id="password" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')login()"><button class="primary" onclick="login()">تسجيل الدخول</button><div id="loginerr" class="err"></div></div></div>
-<div id="app" class="hidden"><header><div><b>🏢 برج الرسالة</b><small id="who"></small></div><button onclick="logout()">خروج</button></header><aside id="side"></aside><main id="main"></main><nav id="nav"></nav></div><div id="modal"></div>
+<div id="app" class="hidden"><header><div><b>🏢 برج الرسالة</b><small id="who"></small></div><button onclick="globalSearchModal()" title="بحث">🔎</button><button onclick="logout()">خروج</button></header><aside id="side"></aside><main id="main"></main><nav id="nav"></nav></div><div id="modal"></div>
 <script>
 const SUPABASE_URL="https://krnrgdsxecellehuezqg.supabase.co";
 const SUPABASE_KEY="sb_publishable__Ctgcy0njM0Vy5fA3LcHrg_ooMv7o8u";
@@ -336,6 +336,29 @@ async function deleteGroupMessage(id){if(!confirm('حذف هذه الرسالة�
 async function muteUser(userId,label){if(!confirm(`كتم ${label}؟ لن يقدر يبعت رسائل في الجروب لحد ما تلغي الكتم.`))return;let r=await db.from('group_mutes').upsert({user_id:userId,muted_by:session.user.id});if(r.error)return alert(friendlyError(r.error.message));alert('تم الكتم')}
 async function muteListModal(){let r=await db.from('group_mutes').select('*').order('muted_at',{ascending:false}),mutes=r.data||[];if(!mutes.length)return openModal('المستخدمون المكتومون','<div class="empty">لا يوجد مستخدمين مكتومين</div>');let ids=mutes.map(m=>m.user_id),profs=(await db.from('profiles').select('id,full_name,username').in('id',ids)).data||[],profMap={};profs.forEach(p=>profMap[p.id]=p);openModal('المستخدمون المكتومون',mutes.map(m=>{let p=profMap[m.user_id];return `<div class="row"><span>${esc(p?.full_name||p?.username||m.user_id)}<small>مكتوم من ${date(m.muted_at)}</small></span><button onclick="unmuteUser('${m.user_id}')">إلغاء الكتم</button></div>`}).join(''))}
 async function unmuteUser(userId){let r=await db.from('group_mutes').delete().eq('user_id',userId);if(r.error)return alert(friendlyError(r.error.message));muteListModal()}
+function globalSearchModal(){openModal('بحث',`<input id="gsq" placeholder="ابحث عن شقة، ساكن، مخالفة، فني صيانة..." oninput="debounceGlobalSearch()"><div id="gsResults"></div>`);setTimeout(()=>$('gsq')?.focus(),50)}
+function debounceGlobalSearch(){clearTimeout(window.__gsTimer);window.__gsTimer=setTimeout(runGlobalSearch,300)}
+async function runGlobalSearch(){
+  let raw=$('gsq')?.value.trim(),box=$('gsResults');
+  if(!box)return;
+  if(!raw||raw.length<2){box.innerHTML='<div class="empty">اكتب حرفين على الأقل</div>';return}
+  box.innerHTML='<div class="empty">⏳ جاري البحث...</div>';
+  let q=raw.replace(/[%,]/g,''),isAdmin=me.role==='admin',isViewer=me.role==='viewer',results=[];
+  let aptsR=await db.from('apartments').select('*').or(`apartment_number.ilike.%${q}%,resident_name.ilike.%${q}%,phone.ilike.%${q}%`).limit(8);
+  (aptsR.data||[]).forEach(a=>results.push({icon:'🏢',title:`شقة ${a.apartment_number}`,sub:a.resident_name||'بدون ساكن',action:`apartmentDetails('${a.id}')`}));
+  if(isAdmin||isViewer){
+    let vR=await db.from('violations').select('*,apartments(apartment_number)').ilike('violation_type',`%${q}%`).limit(8);
+    (vR.data||[]).forEach(v=>results.push({icon:'⚠️',title:v.violation_type,sub:`شقة ${v.apartments?.apartment_number||''} - ${money(v.amount)}`,action:`apartmentDetails('${v.apartment_id}')`}));
+  }
+  let cR=await db.from('maintenance_contacts').select('*').or(`name.ilike.%${q}%,role.ilike.%${q}%`).limit(6);
+  (cR.data||[]).forEach(c=>results.push({icon:'🛠️',title:c.name,sub:c.role,action:`maintenancePage()`}));
+  if(isAdmin){
+    let uR=await db.from('profiles').select('*').or(`username.ilike.%${q}%,full_name.ilike.%${q}%`).limit(6);
+    (uR.data||[]).forEach(u=>results.push({icon:'👤',title:u.full_name||u.username,sub:u.username,action:`usersPage()`}));
+  }
+  if(!results.length){box.innerHTML='<div class="empty">لا توجد نتائج</div>';return}
+  box.innerHTML=results.map(r=>`<div class="row click" onclick="closeModal();${r.action}"><b>${r.icon} ${esc(r.title)}</b><small>${esc(r.sub)}</small></div>`).join('');
+}
 async function unreadGroupCount(){let lr=(await db.from('group_reads').select('last_read_at').eq('user_id',session.user.id).maybeSingle()).data;let since=lr?.last_read_at||'1970-01-01';let r=await db.from('group_messages').select('id',{count:'exact',head:true}).gt('created_at',since).neq('sender_id',session.user.id).is('deleted_at',null);return r.count||0}
 function bulkReminderModal(){openModal('إرسال تنبيه جماعي',`<label class="label">المستلمين</label><select id="brAudience"><option value="all">كل الشقق</option><option value="late_charges">الشقق المتأخرة عن الاشتراك الشهري</option><option value="open_violations">الشقق عليها مخالفات مستحقة</option></select><label class="label">نص الرسالة</label><textarea id="brMsg" rows="5" placeholder="اكتب رسالتك هنا..."></textarea><label class="label"><input id="brDetails" type="checkbox" checked style="width:auto;display:inline-block"> أضف تفاصيل المبلغ المستحق تلقائيًا لكل شقة</label><div class="buttons"><button class="primary" onclick="prepareBulkReminder()">التالي</button><button onclick="closeModal()">إلغاء</button></div>`)}
 async function prepareBulkReminder(){
