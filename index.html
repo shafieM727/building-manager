@@ -468,24 +468,71 @@ function confirmLogout(){if(confirm('تسجيل الخروج؟'))logout()}
 function changePasswordModal(){openModal('تغيير كلمة المرور',`<input id="cp1" type="password" placeholder="كلمة المرور الجديدة"><input id="cp2" type="password" placeholder="تأكيد كلمة المرور"><div id="cpmsg" class="err"></div><div class="buttons"><button class="primary" onclick="saveChangedPassword()">حفظ</button><button onclick="closeModal()">إلغاء</button></div>`)}
 async function saveChangedPassword(){let a=$("cp1").value,b=$("cp2").value;if(a.length<8)return $("cpmsg").textContent="استخدم 8 أحرف على الأقل";if(a!==b)return $("cpmsg").textContent="كلمتا المرور غير متطابقتين";let r=await db.auth.updateUser({password:a});if(r.error)return $("cpmsg").textContent=friendlyError(r.error.message);closeModal();alert("تم تغيير كلمة المرور بنجاح")}
 function urlBase64ToUint8Array(base64String){let padding="=".repeat((4-base64String.length%4)%4),base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/"),rawData=atob(base64),outputArray=new Uint8Array(rawData.length);for(let i=0;i<rawData.length;i++)outputArray[i]=rawData.charCodeAt(i);return outputArray}
+function withTimeout(promise,ms,label){return Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(new Error(`⏱️ ${label} استغرق أكتر من ${ms/1000} ثانية من غير رد`)),ms))])}
 async function enablePushNotifications(){
-  if(!("serviceWorker" in navigator)||!("PushManager" in window))return alert("المتصفح/التطبيق ده مش بيدعم الإشعارات");
+  let steps=[];
+  function log(s){steps.push(s)}
   try{
-    let reg=await navigator.serviceWorker.ready;
+    if(!("serviceWorker" in navigator)||!("PushManager" in window)){
+      return alert("❌ المتصفح/التطبيق ده مش بيدعم الإشعارات خالص (لو ده تطبيق موبايل مغلّف، لازم يكون اتعمل بطريقة TWA مش WebView عادي)");
+    }
+    log("✓ المتصفح بيدعم Push API");
+    let existingReg=await navigator.serviceWorker.getRegistration();
+    log(existingReg?"✓ فيه Service Worker مسجل بالفعل":"⏳ مفيش Service Worker مسجل لسه، بيتسجل دلوقتي...");
+    let reg;
+    try{
+      reg=await withTimeout(navigator.serviceWorker.ready,6000,"تفعيل Service Worker");
+    }catch(e){
+      alert("❌ فشل تفعيل Service Worker:\n"+e.message+"\n\nالخطوات اللي نجحت:\n"+steps.join('\n')+"\n\nتأكد إن ملف sw.js موجود جنب index.html بالظبط في الـrepo، وإن اسمه بحروف صغيرة زي ما هو.");
+      return;
+    }
+    log("✓ Service Worker مفعّل وجاهز");
     let existing=await reg.pushManager.getSubscription();
-    if(existing){alert("✅ الإشعارات مفعّلة بالفعل على الجهاز ده");return}
+    if(existing){
+      log("✓ فيه اشتراك إشعارات موجود بالفعل على الجهاز ده");
+      if(confirm("✅ الإشعارات مفعّلة بالفعل على الجهاز ده.\n\n"+steps.join('\n')+"\n\nتحب تبعتلك إشعار تجريبي دلوقتي؟"))testPushNotification();
+      return;
+    }
+    log("ℹ️ حالة الإذن الحالية: "+Notification.permission);
     let perm=await Notification.requestPermission();
-    if(perm!=="granted")return alert("محتاجين إذنك لتفعيل الإشعارات من إعدادات الجهاز/المتصفح");
-    let sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
+    log("ℹ️ نتيجة طلب الإذن: "+perm);
+    if(perm!=="granted"){
+      alert("❌ محتاجين إذنك لتفعيل الإشعارات.\n\n"+steps.join('\n')+"\n\nلو ضغطت 'حظر' بالغلط قبل كده، افتحي إعدادات الموقع/التطبيق يدويًا وسمحي بالإشعارات من هناك.");
+      return;
+    }
+    let sub;
+    try{
+      sub=await withTimeout(reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)}),8000,"إنشاء الاشتراك");
+    }catch(e){
+      alert("❌ فشل إنشاء اشتراك الإشعارات:\n"+(e?.message||e)+"\n\nالخطوات اللي نجحت:\n"+steps.join('\n'));
+      return;
+    }
+    log("✓ تم إنشاء اشتراك إشعارات جديد على الجهاز");
     let j=sub.toJSON();
     let r=await db.from('push_subscriptions').upsert({user_id:session.user.id,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth_key:j.keys.auth},{onConflict:'endpoint'});
-    if(r.error)return alert(friendlyError(r.error.message));
-    alert("🔔 تم تفعيل الإشعارات على الجهاز ده بنجاح");
-  }catch(e){alert("تعذر تفعيل الإشعارات: "+(e?.message||e))}
+    if(r.error){
+      alert("❌ فشل حفظ الاشتراك في قاعدة البيانات:\n"+friendlyError(r.error.message)+"\n\nالخطوات اللي نجحت:\n"+steps.join('\n'));
+      return;
+    }
+    log("✓ تم حفظ الاشتراك في قاعدة البيانات");
+    if(confirm("🔔 تم تفعيل الإشعارات بنجاح!\n\n"+steps.join('\n')+"\n\nتحب تبعتلك إشعار تجريبي دلوقتي؟"))testPushNotification();
+  }catch(e){
+    alert("❌ خطأ غير متوقع:\n"+(e?.message||e)+"\n\nالخطوات اللي نجحت:\n"+steps.join('\n'));
+  }
+}
+async function testPushNotification(){
+  alert('⏳ جاري إرسال إشعار تجريبي... استنى شوية وهتظهرلك النتيجة');
+  try{
+    let r=await withTimeout(db.functions.invoke('send-push',{body:{user_ids:[session.user.id],title:'🔔 اختبار',body:'لو وصلك الإشعار ده فالنظام شغال تمام',url:'./'}}),15000,"استدعاء send-push");
+    if(r.error)return alert('❌ فشل استدعاء send-push:\n'+friendlyError(r.error.message)+'\n\nراجع Edge Function Logs في Supabase، أو جرب زرار Test من جوه الـDashboard مباشرة.');
+    alert('✅ تم استدعاء send-push بنجاح.\nالنتيجة: '+JSON.stringify(r.data)+'\n\nلو processed=0 يبقى مفيش اشتراك مسجل.\nلو sent=0 وfailed>0 يبقى فيه مشكلة في إرسال الإشعار نفسه (راجع Logs).\nلو sent>0 والإشعار مش ظاهر، المشكلة في استقبال الجهاز نفسه.');
+  }catch(e){
+    alert('❌ الطلب اتعلق أكتر من 15 ثانية من غير رد:\n'+(e?.message||e)+'\n\nده بيأكد إن فيه مشكلة في الوصول لـsend-push نفسها من التطبيق - جرب تفتح نفس الموقع من متصفح Chrome عادي (مش من الـAPK) وكرر نفس الاختبار.');
+  }
 }
 async function sendPushTo(userIds,title,body,url){
   if(!userIds||!userIds.length)return;
-  try{await db.functions.invoke('send-push',{body:{user_ids:userIds,title,body,url:url||'./'}})}catch(e){}
+  try{let r=await db.functions.invoke('send-push',{body:{user_ids:userIds,title,body,url:url||'./'}});if(r.error)console.error('send-push failed:',r.error)}catch(e){console.error('send-push exception:',e)}
 }
-(async()=>{let s=await db.auth.getSession();if(s.data.session){session=s.data.session;let q=await db.from('profiles').select('*').eq('id',session.user.id).single();if(q.data?.is_active){me=q.data;$("login").classList.add('hidden');$("app").classList.remove('hidden');$("who").textContent=(me.full_name||me.username)+' • '+me.role;buildNav();me.must_change_password?passwordPage():me.role==='resident'?myPage():dashboardPage()}}})();if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").catch(()=>{})})}
+(async()=>{let s=await db.auth.getSession();if(s.data.session){session=s.data.session;let q=await db.from('profiles').select('*').eq('id',session.user.id).single();if(q.data?.is_active){me=q.data;$("login").classList.add('hidden');$("app").classList.remove('hidden');$("who").textContent=(me.full_name||me.username)+' • '+me.role;buildNav();me.must_change_password?passwordPage():me.role==='resident'?myPage():dashboardPage()}}})();if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").then(reg=>{console.log("[SW] تم التسجيل بنجاح",reg);window.__swRegistered=true}).catch(err=>{console.error("[SW] فشل التسجيل:",err);window.__swError=err?.message||String(err)})})}
 </script></body></html>
